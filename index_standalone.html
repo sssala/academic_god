@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>八字择吉任务推荐</title>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 2.5em;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: #555;
+      font-size: 1.1em;
+    }
+    
+    input, select, button {
+      padding: 12px;
+      font-size: 16px;
+      width: 100%;
+      max-width: 400px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    input:focus, select:focus {
+      border-color: #667eea;
+      outline: none;
+      box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.2em;
+      margin-top: 20px;
+      transition: transform 0.2s ease;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    #result {
+      margin-top: 30px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.8;
+      background: #f8f9fa;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+      border-left: 5px solid #667eea;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    
+    .loading {
+      text-align: center;
+      color: #667eea;
+      font-size: 1.2em;
+    }
+    
+    .error {
+      color: #e74c3c;
+      background: #fdf2f2;
+      border-left-color: #e74c3c;
+    }
+    
+    .success {
+      color: #27ae60;
+    }
+    
+    .highlight {
+      background: #fff3cd;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔮 Academic god</h1>
+
+    <div class="form-group">
+      <label for="birth">📅 出生日期时间</label>
+      <input type="datetime-local" id="birth" />
+    </div>
+
+    <div class="form-group">
+      <label for="gender">👤 性别</label>
+      <select id="gender">
+        <option value="1">男</option>
+        <option value="0">女</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="task">📝 任务类型</label>
+      <select id="task">
+        <option value="投稿">📄 投稿</option>
+        <option value="返修">✏️ 返修</option>
+        <option value="盲审">👁️ 盲审</option>
+        <option value="答辩">🎓 答辩</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="days">📊 分析天数（1-365天）</label>
+      <input type="number" id="days" min="1" max="365" value="30" />
+    </div>
+
+    <button onclick="submitForm()">🚀 开始分析</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script src="lunar.js"></script>
+  <script>
+    // ==================== 八字计算核心常量 ====================
+    // (保留部分用于旺衰分析和自定义十神计算)
+    const TIANGAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+    const DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+    
+    const GAN_WUXING = {
+      "甲": "木", "乙": "木", "丙": "火", "丁": "火", "戊": "土", "己": "土",
+      "庚": "金", "辛": "金", "壬": "水", "癸": "水"
+    };
+    
+    const ZHI_WUXING = { //地支本气五行
+      "子": "水", "丑": "土", "寅": "木", "卯": "木",
+      "辰": "土", "巳": "火", "午": "火", "未": "土",
+      "申": "金", "酉": "金", "戌": "土", "亥": "水"
+    };
+
+    const GAN_YINYANG = {
+      "甲": "阳", "乙": "阴", "丙": "阳", "丁": "阴", "戊": "阳", "己": "阴",
+      "庚": "阳", "辛": "阴", "壬": "阳", "癸": "阴"
+    };
+    
+    const SHENG_MAP = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}; // 我生者
+    const KE_MAP = {"木": "土", "火": "金", "土": "水", "金": "木", "水": "火"};   // 我克者
+    const SHENG_WO_MAP = Object.fromEntries(Object.entries(SHENG_MAP).map(([k, v]) => [v, k])); // 生我者
+    const KE_WO_MAP = Object.fromEntries(Object.entries(KE_MAP).map(([k, v]) => [v, k]));     // 克我者
+
+    // 运势解释
+    const YUNSHI_JIESHI = {
+      "比肩": "自我强化之运，适合独立创业、自主决策",
+      "劫财": "竞争压力之运，需注意合作关系与财务风险",
+      "食神": "安逸享乐之运，适合创意表达、学术成长",
+      "伤官": "才华释放之运，利于展示能力，需注意得罪权威",
+      "正财": "稳健求财之运，适合投资理财、积累财富",
+      "偏财": "偏门之财之运，适合接触机会型项目或跨界收益",
+      "正官": "规范成长之运，适合晋升考试、公务申报等",
+      "七杀": "压力挑战之运，利于突破瓶颈、展现领导力",
+      "正印": "学习积累之运，利于深造、提升学历与资历",
+      "偏印": "灵感与内省之运，适合研究、写作、静心修炼"
+    };
+    
+    // 学术/事业星含义
+    const CAREER_STAR_MEANING = {
+      "食神": "适合创作、写作、享受学术带来的成果",
+      "伤官": "利于发表、辩论、展示才华，需注意言辞锋芒",
+      "正印": "利于学习考试、取得资质、师承、学位",
+      "七杀": "适合突破压力挑战，有望脱颖而出"
+    };
+    
+    // 神煞数据 (用于择吉)
+    const TASK_YI_JISHEN = {
+      "投稿": new Set(["文昌", "天乙", "学堂", "玉堂", "金匮", "月恩", "天德", "青龙"]),
+      "返修": new Set(["天德", "月德", "六合", "解神", "时德", "时阳", "天赦", "玉堂"]),
+      "盲审": new Set(["金匮", "天乙", "青龙", "明堂", "天恩", "天喜", "福生", "王日"]),
+      "答辩": new Set(["文昌", "三奇", "天喜", "金匮", "玉堂", "天医", "天赦", "明堂", "天德合"])
+    };
+    
+    const TASK_JI_XIONGSHA = {
+      "投稿": new Set(["天贼", "披麻", "破日", "死神", "小耗", "月煞", "劫煞", "血忌"]),
+      "返修": new Set(["月破", "日破", "旬空", "天贼", "复日", "死气", "月厌", "月害"]),
+      "盲审": new Set(["披麻", "劫煞", "月煞", "死气", "五鬼", "天狗", "白虎"]),
+      "答辩": new Set(["天贼", "死气", "五鬼", "月厌", "朱雀", "地火", "白虎", "孤阳"])
+    };
+
+    // ==================== 八字计算辅助函数 ====================
+
+    // 计算任意天干相对于特定日主天干的十神
+    function calculateTenGodForExternalGan(dayMasterGan, targetGan) {
+      if (!dayMasterGan || !targetGan) return "未知";
+      const dmWuXing = GAN_WUXING[dayMasterGan];
+      const tgWuXing = GAN_WUXING[targetGan];
+      const dmYinYang = GAN_YINYANG[dayMasterGan];
+      const tgYinYang = GAN_YINYANG[targetGan];
+
+      if (!dmWuXing || !tgWuXing || !dmYinYang || !tgYinYang) return "未知";
+
+      const isSameYinYang = dmYinYang === tgYinYang;
+
+      if (tgWuXing === dmWuXing) { // 同我者
+        return isSameYinYang ? "比肩" : "劫财";
+      } else if (SHENG_MAP[dmWuXing] === tgWuXing) { // 我生者
+        return isSameYinYang ? "食神" : "伤官";
+      } else if (SHENG_WO_MAP[dmWuXing] === tgWuXing) { // 生我者
+        return isSameYinYang ? "偏印" : "正印";
+      } else if (KE_MAP[dmWuXing] === tgWuXing) { // 我克者
+        return isSameYinYang ? "偏财" : "正财";
+      } else if (KE_WO_MAP[dmWuXing] === tgWuXing) { // 克我者
+        return isSameYinYang ? "七杀" : "正官";
+      }
+      return "未知";
+    }
+    
+    // 分析五行强弱 (使用lunar.js获取基础数据)
+    function analyzeWuXingStrength(eightChar) {
+      const dayGan = eightChar.getDayGan();
+      const dayGanWuXing = GAN_WUXING[dayGan];
+      
+      const wuxingCount = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0};
+
+      // 统计四柱天干五行
+      [eightChar.getYearGan(), eightChar.getMonthGan(), eightChar.getDayGan(), eightChar.getTimeGan()].forEach(gan => {
+        if (GAN_WUXING[gan]) wuxingCount[GAN_WUXING[gan]]++;
+      });
+
+      // 统计四柱地支藏干五行 (本气、中气、余气均统计)
+      [eightChar.getYearHideGan(), eightChar.getMonthHideGan(), eightChar.getDayHideGan(), eightChar.getTimeHideGan()].forEach(hideGans => {
+        hideGans.forEach(gan => {
+          if (GAN_WUXING[gan]) wuxingCount[GAN_WUXING[gan]]++;
+        });
+      });
+      
+      // 得令判断: 日干在月令的旺衰 (参考月支藏干和月柱地势)
+      // 月令主气生助日干，或月令为日干的禄刃（长生、沐浴、冠带、临官、帝旺）
+      const monthZhi = eightChar.getMonthZhi();
+      const monthHideGans = eightChar.getMonthHideGan(); // 月支藏干
+      const monthDiShi = eightChar.getMonthDiShi(); // 月柱地势，相对于月柱干支，不是日干在月令的地势
+      
+      // 更准确的得令判断：日干在月令（月支）是否当权（即月支的本气五行是否为日干的印比）
+      // 或者月支本身就是日干的强根（禄、旺、长生等）
+      // lunar.js 的 getDayDiShi() 是日柱地势，我们需要日干在月、年、时支的地势，lunar.js似乎不直接提供这个。
+      // 简化判断：月支本气五行是否生助日干五行
+      let deLing = false;
+      const monthZhiWuXing = ZHI_WUXING[monthZhi]; // 月支本气五行
+      if (monthZhiWuXing === dayGanWuXing || SHENG_WO_MAP[dayGanWuXing] === monthZhiWuXing) {
+        deLing = true;
+      }
+      // 也可参考月支藏干是否有日干的印星或比劫
+      if (!deLing && monthHideGans.some(hg => GAN_WUXING[hg] === dayGanWuXing || SHENG_WO_MAP[dayGanWuXing] === GAN_WUXING[hg])) {
+        deLing = true;
+      }
+
+      // 得地判断: 日干在年支、日支、时支有根 (本气根、中气根、余气根，或为印比)
+      let deDiCount = 0;
+      [eightChar.getYearZhi(), eightChar.getDayZhi(), eightChar.getTimeZhi()].forEach(zhi => {
+        const hideGans = zhi === eightChar.getYearZhi() ? eightChar.getYearHideGan() : 
+                         (zhi === eightChar.getDayZhi() ? eightChar.getDayHideGan() : eightChar.getTimeHideGan());
+        if (hideGans.some(hg => GAN_WUXING[hg] === dayGanWuXing)) deDiCount++; // 有同类五行根
+        else if (hideGans.some(hg => SHENG_WO_MAP[dayGanWuXing] === GAN_WUXING[hg])) deDiCount++; // 有生我之印的根
+      });
+      const deDi = deDiCount > 0;
+      
+      // 得助判断: 年干、月干、时干有印比生助
+      let deZhuCount = 0;
+      [eightChar.getYearGan(), eightChar.getMonthGan(), eightChar.getTimeGan()].forEach(gan => {
+        if (gan === dayGan) return; // 不计日干本身
+        const ganWuXing = GAN_WUXING[gan];
+        if (ganWuXing === dayGanWuXing || SHENG_WO_MAP[dayGanWuXing] === ganWuXing) deZhuCount++;
+      });
+      const deZhu = deZhuCount > 0;
+      
+      const strengthScore = (deLing ? 1.5 : 0) + (deDiCount * 0.75) + (deZhuCount * 0.5); // 简单加权
+      
+      let status;
+      if (strengthScore >= 2.0) status = "日主偏强";
+      else if (strengthScore >= 1.0) status = "中和";
+      else status = "日主偏弱";
+      
+      let yongShen = [], jiShen = [], xiShen = [];
+      if (status === "日主偏强") {
+        yongShen = [KE_MAP[dayGanWuXing], SHENG_MAP[dayGanWuXing], "水"]; // 克我、我生、调候（水）
+        jiShen = [dayGanWuXing, SHENG_WO_MAP[dayGanWuXing]]; // 同我、生我
+        xiShen = yongShen; // 喜神通常是用神的同类或生用神的五行
+      } else if (status === "日主偏弱") {
+        yongShen = [dayGanWuXing, SHENG_WO_MAP[dayGanWuXing]]; // 同我、生我
+        jiShen = [KE_MAP[dayGanWuXing], SHENG_MAP[dayGanWuXing], KE_WO_MAP[dayGanWuXing]]; // 克我、我生、泄我
+        xiShen = yongShen;
+      } else { // 中和
+        // 中和以流通平衡为要，可能需要根据具体五行组合细调
+        // 简单处理：扶抑两用，或取调候用神
+        yongShen = ["调和全局"];
+        xiShen = ["视局而定"];
+        jiShen = ["太过或不及之五行"];
+      }
+      // 移除重复项并确保用神不超过2-3个主流
+      yongShen = [...new Set(yongShen)].slice(0,3);
+      jiShen = [...new Set(jiShen)].slice(0,3);
+
+      return {
+        dayGan,
+        dayGanWuXing,
+        status,
+        wuxingCount,
+        yongShen,
+        xiShen,
+        jiShen,
+        deLing,
+        deDi,
+        deZhu
+      };
+    }
+        
+    // 简化的神煞计算 (用于择吉，lunar.js不直接提供每日完整神煞)
+    function calculateShenSha(targetDateStr, task) {
+      const date = new Date(targetDateStr); // 确保传入的是日期对象或可解析的字符串
+      const allJiShen = ["文昌", "天乙", "学堂", "玉堂", "金匮", "月恩", "天德", "青龙", "明堂", "天恩", "天喜", "福生", "王日", "解神", "月德", "六合", "时德", "时阳", "天赦", "三奇", "天医", "天德合"];
+      const allXiongSha = ["天贼", "披麻", "破日", "死神", "小耗", "月煞", "劫煞", "血忌", "月破", "日破", "旬空", "复日", "死气", "月厌", "月害", "五鬼", "天狗", "白虎", "朱雀", "地火", "孤阳"];
+      
+      const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+      const jiShenCount = (dayOfYear % 5) + 2; // 增加吉神数量
+      const xiongShaCount = (dayOfYear % 3) + 1;
+      
+      const jiShen = [];
+      const xiongSha = [];
+      
+      for (let i = 0; i < jiShenCount; i++) {
+        const index = (dayOfYear * 3 + i * 5) % allJiShen.length;
+        if (!jiShen.includes(allJiShen[index])) jiShen.push(allJiShen[index]);
+      }
+      
+      for (let i = 0; i < xiongShaCount; i++) {
+        const index = (dayOfYear * 2 + i * 3) % allXiongSha.length;
+        if (!xiongSha.includes(allXiongSha[index])) xiongSha.push(allXiongSha[index]);
+      }
+      
+      return { jiShen, xiongSha };
+    }
+    
+    // 择吉评分算法
+    function evaluateDayForTask(targetDateStr, task, yongShen, jiShen, dayMasterGan, currentDaYunTenGod, currentLiuNianTenGod, currentLiuYueTenGod) {
+      try {
+        const solarDate = Solar.fromDate(new Date(targetDateStr));
+        const eightCharToday = Lunar.fromDate(new Date(targetDateStr)).getEightChar();
+        eightCharToday.setSect(2); // 确保流派一致
+
+        const dayGanCurr = eightCharToday.getDayGan();
+        const dayZhiCurr = eightCharToday.getDayZhi();
+        const dayGanWx = GAN_WUXING[dayGanCurr];
+        const dayZhiWx = ZHI_WUXING[dayZhiCurr]; //地支本气五行
+        
+        const shenSha = calculateShenSha(targetDateStr, task);
+        const jiShenSet = new Set(shenSha.jiShen);
+        const xiongShaSet = new Set(shenSha.xiongSha);
+        
+        let score = 50; // Base score
+        
+        // 神煞评分
+        const taskYiJiShen = TASK_YI_JISHEN[task] || new Set();
+        const taskJiXiongSha = TASK_JI_XIONGSHA[task] || new Set();
+        
+        score += Array.from(jiShenSet).filter(x => taskYiJiShen.has(x)).length * 15;
+        score -= Array.from(xiongShaSet).filter(x => taskJiXiongSha.has(x)).length * 20;
+        
+        // 用神与忌神评分 (当日干支五行对命主的影响)
+        if (yongShen.includes(dayGanWx)) score += 20;
+        if (yongShen.includes(dayZhiWx)) score += 10;
+        if (jiShen.includes(dayGanWx)) score -= 25;
+        if (jiShen.includes(dayZhiWx)) score -= 15;
+
+        // 当日干支与命主日干的关系
+        const todayDayGanToDM = calculateTenGodForExternalGan(dayMasterGan, dayGanCurr);
+        if (["正财", "偏财", "食神", "正官", "正印"].includes(todayDayGanToDM)) score += 10;
+        if (["劫财", "伤官", "七杀", "偏印"].includes(todayDayGanToDM)) score -= 5;
+
+        // 考虑当前大运、流年、流月十神对当日的辅助作用 (如果它们是吉十神)
+        [currentDaYunTenGod, currentLiuNianTenGod, currentLiuYueTenGod].forEach(tg => {
+          if (["正财", "偏财", "食神", "正官", "正印"].includes(tg)) {
+            score += 5;
+          }
+        });
+        
+        return {
+          date: targetDateStr, // Keep original string for consistency
+          ganzhi: dayGanCurr + dayZhiCurr,
+          jiShen: Array.from(jiShenSet),
+          xiongSha: Array.from(xiongShaSet),
+          wuxing: `${dayGanWx}/${dayZhiWx}`,
+          score: Math.max(0, Math.round(score)) // Ensure score is not negative
+        };
+      } catch (e) {
+        return {
+          date: targetDateStr,
+          ganzhi: "计算失败",
+          jiShen: [],
+          xiongSha: [],
+          wuxing: "未知/未知",
+          score: 0,
+          error: e.message
+        };
+      }
+    }
+    
+    // ==================== 主分析函数 ====================
+    
+    function runBaziAnalysis(birthDateTime, gender, task, analysisDays, currentTime) {
+      const 결과 = { // Renamed to avoid conflict with element id 'result'
+        dateRecPrints: [],
+        baziPrints: [],
+        daYunPrints: [],
+        data: {} // For structured data if needed later
+      };
+      
+      try {
+        const solarBirth = Solar.fromDate(birthDateTime);
+        const lunarBirth = Lunar.fromDate(birthDateTime);
+        const eightChar = lunarBirth.getEightChar();
+        eightChar.setSect(2); // 设置八字流派为2
+
+        결과.baziPrints.push("✨ 八字分析 ✨\n" + "=".repeat(30));
+        결과.baziPrints.push(`公历生日: ${solarBirth.toString()}`);
+        결과.baziPrints.push(`农历生日: ${lunarBirth.toString()} (${lunarBirth.getYearInGanZhi()} ${lunarBirth.getMonthInGanZhi()} ${lunarBirth.getDayInGanZhi()})`);
+        결과.baziPrints.push(`生肖: ${lunarBirth.getYearShengXiao()} | 星座: ${solarBirth.getXingZuo()}`);
+        
+        const yearGZ = eightChar.getYear();
+        const monthGZ = eightChar.getMonth();
+        const dayGZ = eightChar.getDay();
+        const timeGZ = eightChar.getTime();
+        결과.baziPrints.push(`\n【四柱干支】`);
+        결과.baziPrints.push(`年柱: ${yearGZ} (旬空:${eightChar.getYearXunKong()}) (地势:${eightChar.getYearDiShi()})`);
+        결과.baziPrints.push(`月柱: ${monthGZ} (旬空:${eightChar.getMonthXunKong()}) (地势:${eightChar.getMonthDiShi()})`);
+        결과.baziPrints.push(`日柱: ${dayGZ} (旬空:${eightChar.getDayXunKong()}) (地势:${eightChar.getDayDiShi()})`);
+        결과.baziPrints.push(`时柱: ${timeGZ} (旬空:${eightChar.getTimeXunKong()}) (地势:${eightChar.getTimeDiShi()})`);
+
+        결과.baziPrints.push(`\n【纳音】`);
+        결과.baziPrints.push(`年柱纳音: ${eightChar.getYearNaYin()} (${eightChar.getYearWuXing()})`);
+        결과.baziPrints.push(`月柱纳音: ${eightChar.getMonthNaYin()} (${eightChar.getMonthWuXing()})`);
+        결과.baziPrints.push(`日柱纳音: ${eightChar.getDayNaYin()} (${eightChar.getDayWuXing()})`);
+        결과.baziPrints.push(`时柱纳音: ${eightChar.getTimeNaYin()} (${eightChar.getTimeWuXing()})`);
+
+        결과.baziPrints.push(`\n【十神】(相对于日主 ${eightChar.getDayGan()})`);
+        결과.baziPrints.push(`年柱十神: 干[${eightChar.getYearShiShenGan()}] 支[${eightChar.getYearShiShenZhi().join(',')}]`);
+        결과.baziPrints.push(`月柱十神: 干[${eightChar.getMonthShiShenGan()}] 支[${eightChar.getMonthShiShenZhi().join(',')}]`);
+        결과.baziPrints.push(`日柱十神: 干[${eightChar.getDayShiShenGan()}] 支[${eightChar.getDayShiShenZhi().join(',')}]`);
+        결과.baziPrints.push(`时柱十神: 干[${eightChar.getTimeShiShenGan()}] 支[${eightChar.getTimeShiShenZhi().join(',')}]`);
+        
+        const qiangruo = analyzeWuXingStrength(eightChar);
+        결과.data.qiangruo = qiangruo; // Store for later use in evaluateDayForTask
+
+        결과.baziPrints.push(`\n【日主旺衰分析】`);
+        결과.baziPrints.push(`日主: ${qiangruo.dayGan} (五行：${qiangruo.dayGanWuXing})`);
+        결과.baziPrints.push(`旺衰: ${qiangruo.status} (得令:${qiangruo.deLing}, 得地:${qiangruo.deDi}, 得助:${qiangruo.deZhu})`);
+        결과.baziPrints.push(`五行个数: 木:${qiangruo.wuxingCount['木']}, 火:${qiangruo.wuxingCount['火']}, 土:${qiangruo.wuxingCount['土']}, 金:${qiangruo.wuxingCount['金']}, 水:${qiangruo.wuxingCount['水']}`);
+        결과.baziPrints.push(`用神参考: ${qiangruo.yongShen.join(', ')}`);
+        결과.baziPrints.push(`喜神参考: ${qiangruo.xiShen.join(', ')}`);
+        결과.baziPrints.push(`忌神参考: ${qiangruo.jiShen.join(', ')}`);
+
+        결과.baziPrints.push(`\n【其他神煞参考】`);
+        결과.baziPrints.push(`胎元: ${eightChar.getTaiYuan()} | 命宫: ${eightChar.getMingGong()} | 身宫: ${eightChar.getShenGong()}`);
+
+
+        // 大运、流年、小运、流月分析
+        결과.daYunPrints.push("📜 大运流年分析 📜\n" + "=".repeat(30));
+        const yun = eightChar.getYun(gender, 1); // 起运流派1
+        // 手动计算虚岁: 当前年份 - 出生年份 + 1
+        const age = currentTime.getFullYear() - solarBirth.getYear() + 1;
+        결과.daYunPrints.push(`当前虚岁: ${age}岁`);
+        결과.daYunPrints.push(`起运时间: ${yun.getStartSolar().toString()} (${yun.getStartYear()}年${yun.getStartMonth()}月${yun.getStartDay()}天后)`);
+
+        const daYunArr = yun.getDaYun();
+        let currentDaYunObj = null;
+        let currentLiuNianObj = null;
+        let currentLiuYueObj = null; // For storing the current LiuYue object if found
+
+        const currentSolarYear = currentTime.getFullYear();
+
+        daYunArr.forEach(dy => {
+          결과.daYunPrints.push(`\n--- ${dy.getStartAge()}岁-${dy.getEndAge()}岁 (${dy.getStartYear()}年-${dy.getEndYear()}年) ---`);
+          const daYunGanZhi = dy.getGanZhi();
+          let daYunTenGod = "未知";
+          let dyXunKong = "未知";
+
+          if (daYunGanZhi && daYunGanZhi.length === 2) {
+            const daYunGan = daYunGanZhi[0];
+            daYunTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), daYunGan);
+            try {
+              dyXunKong = dy.getXunKong() || "无";
+            } catch (e) {
+              console.warn(`大运 ${daYunGanZhi} (${dy.getStartAge()}岁) 旬空计算错误: ${e.message}`);
+              dyXunKong = "计算异常";
+            }
+          } else {
+            console.warn(`无效的大运干支: ${daYunGanZhi}，年龄: ${dy.getStartAge()}岁`);
+            dyXunKong = "干支无效";
+          }
+          결과.daYunPrints.push(`大运: ${daYunGanZhi || "未知干支"} (十神:${daYunTenGod}) (旬空:${dyXunKong})`);
+
+          if (currentSolarYear >= dy.getStartYear() && currentSolarYear <= dy.getEndYear()) {
+            currentDaYunObj = dy;
+          }
+
+          const liuNianArr = dy.getLiuNian();
+          liuNianArr.slice(0, 3).forEach(ln => { // Display first 3 LiuNian for brevity
+            const liuNianGanZhi = ln.getGanZhi();
+            let liuNianTenGod = "未知";
+            let lnXunKong = "未知";
+
+            if (liuNianGanZhi && liuNianGanZhi.length === 2) {
+              const liuNianGan = liuNianGanZhi[0];
+              liuNianTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), liuNianGan);
+              try {
+                lnXunKong = ln.getXunKong() || "无";
+              } catch (e) {
+                console.warn(`流年 ${liuNianGanZhi} (${ln.getYear()}年) 旬空计算错误: ${e.message}`);
+                lnXunKong = "计算异常";
+              }
+            } else {
+               console.warn(`无效的流年干支: ${liuNianGanZhi}，年份: ${ln.getYear()}`);
+               lnXunKong = "干支无效";
+            }
+            결과.daYunPrints.push(`  流年 ${ln.getYear()} (${ln.getAge()}岁): ${liuNianGanZhi || "未知干支"} (十神:${liuNianTenGod}) (旬空:${lnXunKong})`);
+            if (ln.getYear() === currentSolarYear) {
+                currentLiuNianObj = ln;
+            }
+          });
+          if (liuNianArr.length > 3) 결과.daYunPrints.push(`  ... (共 ${liuNianArr.length} 流年)`);
+
+          const xiaoYunArr = dy.getXiaoYun();
+           xiaoYunArr.slice(0, 3).forEach(xy => {
+            const xiaoYunGanZhi = xy.getGanZhi();
+            let xyXunKong = "未知";
+             if (xiaoYunGanZhi && xiaoYunGanZhi.length === 2) {
+                try {
+                  xyXunKong = xy.getXunKong() || "无";
+                } catch (e) {
+                  console.warn(`小运 ${xiaoYunGanZhi} (${xy.getYear()}年) 旬空计算错误: ${e.message}`);
+                  xyXunKong = "计算异常";
+                }
+             } else {
+                console.warn(`无效的小运干支: ${xiaoYunGanZhi}，年份: ${xy.getYear()}`);
+                xyXunKong = "干支无效";
+             }
+            결과.daYunPrints.push(`  小运 ${xy.getYear()} (${xy.getAge()}岁): ${xiaoYunGanZhi || "未知干支"} (旬空:${xyXunKong})`);
+          });
+          if (xiaoYunArr.length > 3) 결과.daYunPrints.push(`  ... (共 ${xiaoYunArr.length} 小运)`);
+        });
+        
+        // 当前运势详细
+        결과.daYunPrints.push(`\n【当前运势详解】`);
+        let currentDaYunTenGod = "未知", currentLiuNianTenGod = "未知", currentLiuYueTenGod = "未知";
+
+        if (currentDaYunObj) {
+          const daYunGan = currentDaYunObj.getGanZhi()[0];
+          currentDaYunTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), daYunGan);
+          결과.daYunPrints.push(`当前大运: ${currentDaYunObj.getGanZhi()} (${currentDaYunObj.getStartAge()}-${currentDaYunObj.getEndAge()}岁) (十神:${currentDaYunTenGod})`);
+          결과.daYunPrints.push(`  → ${YUNSHI_JIESHI[currentDaYunTenGod] || '平运过渡'}`);
+        } else {
+          결과.daYunPrints.push(`当前大运: 未在推算范围内`);
+        }
+        
+        const currentEightChar = Lunar.fromDate(currentTime).getEightChar(); // For current year/month GanZhi
+        currentEightChar.setSect(2);
+
+        if (currentLiuNianObj) { // If current LiuNian object was found within a DaYun
+             const liuNianGan = currentLiuNianObj.getGanZhi()[0];
+             currentLiuNianTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), liuNianGan);
+             결과.daYunPrints.push(`当前流年: ${currentLiuNianObj.getGanZhi()} (${currentLiuNianObj.getYear()}年) (十神:${currentLiuNianTenGod})`);
+             결과.daYunPrints.push(`  → ${YUNSHI_JIESHI[currentLiuNianTenGod] || '平运过渡'}`);
+             // Find current LiuYue from this LiuNian
+             const currentMonthLunar = Lunar.fromDate(currentTime).getMonth(); // Lunar month 1-12
+             currentLiuNianObj.getLiuYue().forEach(lym => {
+                 // lym.getMonthInChinese() is like "正", "二", ...
+                 // We need to match with current lunar month number.
+                 // Lunar.js month (1-12) vs lym.getIndex() (0-11) ?
+                 // Or match by GanZhi if currentEightChar.getMonth() is reliable
+                 if (lym.getGanZhi() === currentEightChar.getMonth()){ // Exact match of GanZhi for current month
+                     currentLiuYueObj = lym;
+                 }
+             });
+        } else { // Fallback if not found in DaYun loop (e.g. before起运)
+            const currentYearGanZhi = currentEightChar.getYear();
+            const currentYearGan = currentYearGanZhi[0];
+            currentLiuNianTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), currentYearGan);
+            결과.daYunPrints.push(`当前流年: ${currentYearGanZhi} (${currentTime.getFullYear()}年) (十神:${currentLiuNianTenGod})`);
+            결과.daYunPrints.push(`  → ${YUNSHI_JIESHI[currentLiuNianTenGod] || '平运过渡'}`);
+        }
+
+        if (currentLiuYueObj) {
+            const liuYueGan = currentLiuYueObj.getGanZhi()[0];
+            currentLiuYueTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), liuYueGan);
+            결과.daYunPrints.push(`当前流月: ${currentLiuYueObj.getGanZhi()} (${currentLiuYueObj.getMonthInChinese()}月) (十神:${currentLiuYueTenGod})`);
+            결과.daYunPrints.push(`  → ${YUNSHI_JIESHI[currentLiuYueTenGod] || '平运过渡'}`);
+        } else { // Fallback for current LiuYue
+            const currentMonthGanZhi = currentEightChar.getMonth();
+            const currentMonthGan = currentMonthGanZhi[0];
+            currentLiuYueTenGod = calculateTenGodForExternalGan(eightChar.getDayGan(), currentMonthGan);
+            결과.daYunPrints.push(`当前流月: ${currentMonthGanZhi} (${Lunar.fromDate(currentTime).getMonthInChinese()}月) (十神:${currentLiuYueTenGod})`);
+            결과.daYunPrints.push(`  → ${YUNSHI_JIESHI[currentLiuYueTenGod] || '平运过渡'}`);
+        }
+        
+        결과.data.currentTengods = { daYun: currentDaYunTenGod, liuNian: currentLiuNianTenGod, liuYue: currentLiuYueTenGod };
+
+        const careerStars = new Set(Object.keys(CAREER_STAR_MEANING));
+        const activeStars = { "大运": currentDaYunTenGod, "流年": currentLiuNianTenGod, "流月": currentLiuYueTenGod };
+        let hasCareerStar = false;
+        결과.daYunPrints.push(`\n🎓 学术/事业星曜提示:`);
+        Object.entries(activeStars).forEach(([period, star]) => {
+          if (careerStars.has(star)) {
+            결과.daYunPrints.push(`【${period}】逢【${star}】：${CAREER_STAR_MEANING[star]}`);
+            hasCareerStar = true;
+          }
+        });
+        if (!hasCareerStar) {
+          결과.daYunPrints.push("当前阶段暂无显著学术/事业吉星。");
+        }
+
+        // 择吉分析
+        결과.dateRecPrints.push(`📅 未来${analysisDays}天择吉推荐（任务：${task}）\n` + "=".repeat(30));
+        const allResults = [];
+        const startDate = new Date(currentTime);
+        for (let i = 0; i < analysisDays; i++) {
+          const d = new Date(startDate);
+          d.setDate(startDate.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          const r = evaluateDayForTask(dateStr, task, qiangruo.yongShen, qiangruo.jiShen, eightChar.getDayGan(), currentDaYunTenGod, currentLiuNianTenGod, currentLiuYueTenGod);
+          allResults.push(r);
+        }
+        
+        allResults.sort((a, b) => b.score - a.score); // Sort by score descending
+        
+        const goodDays = allResults.filter(r => r.score >= 70); // Threshold for "good" day
+        
+        if (goodDays.length > 0) {
+          결과.dateRecPrints.push(`\n🎉 找到 ${goodDays.length} 个高分推荐日 (得分>=70):`);
+          goodDays.slice(0,5).forEach((day, idx) => { // Show top 5 good days
+            결과.dateRecPrints.push(`\n🎯 推荐日 ${idx + 1}: ${day.date} | 得分: ${day.score}`);
+            결과.dateRecPrints.push(`   日柱: ${day.ganzhi} (五行:${day.wuxing})`);
+            결과.dateRecPrints.push(`   吉神: ${day.jiShen.join('、') || '无特定'}`);
+            결과.dateRecPrints.push(`   凶煞: ${day.xiongSha.join('、') || '无特定'}`);
+          });
+        } else {
+          결과.dateRecPrints.push(`\n⚠️ 未找到得分 >= 70 的高分推荐日，列出得分最高的前3日：`);
+          allResults.slice(0, 3).forEach((day, idx) => {
+            결과.dateRecPrints.push(`\n🏅 潜力日 ${idx + 1}: ${day.date} | 得分: ${day.score}`);
+            결과.dateRecPrints.push(`   日柱: ${day.ganzhi} (五行:${day.wuxing})`);
+            결과.dateRecPrints.push(`   吉神: ${day.jiShen.join('、') || '无特定'}`);
+            결과.dateRecPrints.push(`   凶煞: ${day.xiongSha.join('、') || '无特定'}`);
+          });
+        }
+        return 결과;
+        
+      } catch (e) {
+        console.error("Analysis Error:", e);
+        결과.baziPrints.push(`分析过程中出现错误: ${e.message}\n${e.stack}`);
+        return 결과;
+      }
+    }
+    
+    // ==================== 表单提交函数 ====================
+    
+    function submitForm() {
+      const birth = document.getElementById('birth').value;
+      const gender = parseInt(document.getElementById('gender').value);
+      const task = document.getElementById('task').value;
+      const analysisDays = parseInt(document.getElementById('days').value);
+
+      if (!birth) {
+        alert("⚠️ 请输入出生日期和时间！");
+        return;
+      }
+      if (analysisDays < 1 || analysisDays > 365) {
+        alert("⚠️ 分析天数必须在1-365之间！");
+        return;
+      }
+
+      const resultBox = document.getElementById('result');
+      resultBox.className = 'loading';
+      resultBox.innerText = "⏳ 正在分析八字信息，请稍候...";
+
+      setTimeout(() => {
+        try {
+          const birthDateTime = new Date(birth);
+          const currentTime = new Date();
+          
+          const analysisResult = runBaziAnalysis(birthDateTime, gender, task, analysisDays, currentTime);
+          
+          resultBox.className = 'success';
+          
+          let formattedOutput = "";
+          formattedOutput += analysisResult.dateRecPrints.join("\n") + "\n\n";
+          formattedOutput += analysisResult.baziPrints.join("\n") + "\n\n";
+          formattedOutput += analysisResult.daYunPrints.join("\n");
+          
+          resultBox.innerText = formattedOutput;
+          
+        } catch (error) {
+          resultBox.className = 'error';
+          resultBox.innerText = "❌ 分析主流程失败：" + error.message + "\n" + error.stack;
+          console.error('主流程错误:', error);
+        }
+      }, 100); // Reduced timeout for faster feedback
+    }
+
+    window.onload = function() {
+      const defaultDate = new Date('1990-01-01T12:00');
+      document.getElementById('birth').value = defaultDate.toISOString().slice(0, 16);
+    };
+  </script>
+</body>
+</html>
